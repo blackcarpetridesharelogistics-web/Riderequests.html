@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+    <title>Black Carpet | Rideshare & Logistics</title>
+    <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
+    <style>
+        #bc-app { all: initial; font-family: 'Times New Roman', serif; background: #000; color: #fff; display: block; padding: 20px; max-width: 600px; width: 100%; margin: 10px auto; border: 2px solid #d4af37; border-radius: 15px; box-sizing: border-box; box-shadow: 0 0 20px rgba(212, 175, 55, 0.2); overflow-x: hidden; }
+        #bc-app * { box-sizing: border-box; font-family: inherit; }
+        body { background: #111; margin: 0; }
+        .brand-header-container { text-align: center; margin-bottom: 20px; padding: 15px; border-radius: 10px; background: radial-gradient(circle, rgba(212, 175, 55, 0.15) 0%, rgba(0,0,0,0) 70%); border-bottom: 1px solid #d4af37; }
+        .brand-logo { width: 100px; height: auto; border-radius: 50%; border: 2px solid #d4af37; box-shadow: 0 0 15px #d4af37; margin-bottom: 10px; }
+        .brand-name { color: #d4af37; font-size: 22px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; text-shadow: 0 0 8px rgba(212, 175, 55, 0.5); }
+        .policy-notice { background: #1a1a1a; border: 1px solid #d4af37; padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; line-height: 1.4; color: #eee; }
+        .label { display: block; margin: 12px 0 5px; color: #d4af37; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+        .input, .select, .textarea { width: 100%; padding: 12px; border-radius: 5px; border: 1px solid #333; background: #1a1a1a; color: #fff; font-size: 16px; margin-bottom: 5px; display: block; }
+        .input.error, .select.error { border-color: #e74c3c !important; box-shadow: 0 0 6px rgba(231,76,60,0.5); }
+        .field-error { color: #e74c3c; font-size: 11px; margin-top: -3px; margin-bottom: 6px; display: none; }
+        .field-error.visible { display: block; }
+        #bc-map { height: 300px; width: 100%; border-radius: 8px; margin-top: 15px; border: 1px solid #d4af37; z-index: 1; cursor: crosshair; }
+        .map-tip { font-size: 10px; color: #d4af37; text-align: center; margin-top: 5px; font-style: italic; }
+        .reset-btn { background: #333; color: #d4af37; border: 1px solid #d4af37; padding: 5px 10px; font-size: 10px; border-radius: 4px; cursor: pointer; margin: 10px 0; text-transform: uppercase; }
+        .step { display: none; position: relative; } .active { display: block; }
+        .btn { width: 100%; padding: 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; text-transform: uppercase; margin-top: 15px; font-size: 14px; background: #d4af37; color: #000; transition: 0.2s; }
+        .btn:hover { background: #f1c40f; }
+        .summary { background: #111; padding: 15px; border-radius: 8px; text-align: center; margin-top: 20px; border: 1px dashed #d4af37; }
+        .price-ttd { font-size: 28px; font-weight: bold; display: block; color: #d4af37; }
+        .price-usd { font-size: 18px; color: #fff; opacity: 0.9; display: block; margin-top: 5px; }
+        .row { display: flex; gap: 8px; flex-wrap: wrap; } .col { flex: 1; min-width: 90px; }
+
+        /* Vehicle selection cards */
+        .vehicle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+        .vehicle-card { position: relative; border: 1px solid #333; border-radius: 8px; padding: 14px 10px; text-align: center; cursor: pointer; background: #1a1a1a; font-size: 13px; color: #eee; transition: 0.2s; user-select: none; }
+        .vehicle-card:hover { border-color: #d4af37; }
+        .vehicle-card.selected { border-color: #d4af37; background: rgba(212, 175, 55, 0.12); box-shadow: 0 0 8px rgba(212, 175, 55, 0.3); }
+        .vehicle-card.coming-soon { cursor: not-allowed; }
+        .vehicle-card.coming-soon:hover { border-color: #333; }
+        .vehicle-card-label { pointer-events: none; }
+        .coming-soon-overlay { position: absolute; inset: 0; background: rgba(50, 50, 50, 0.82); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #ddd; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; pointer-events: none; }
+        .review-box { background: #1a1a1a; padding: 15px; border-radius: 8px; margin-top: 10px; border: 1px solid #333; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; font-size: 13px; line-height: 1.5; font-family: monospace; max-width: 100%; }
+        .hidden { display: none !important; }
+
+        /* Address suggestions */
+        .mb-suggest { position: absolute; z-index: 9999; background: #1a1a1a; border: 1px solid #d4af37; border-radius: 5px; display: none; max-height: 220px; overflow-y: auto; }
+        .mb-item { padding: 10px; font-size: 13px; color: #eee; border-top: 1px solid #333; cursor: pointer; }
+        .mb-item:hover { background: #333; color: #d4af37; }
+
+        /* Stop inputs */
+        .stop-input-wrap { position: relative; margin-bottom: 8px; }
+        .stop-input-wrap .stop-num { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #d4af37; font-size: 11px; font-weight: bold; pointer-events: none; z-index: 2; }
+        .stop-input-wrap .input { padding-left: 32px; }
+        .stop-input-wrap .stop-confirmed { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 14px; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        .stop-input-wrap.confirmed .stop-confirmed { opacity: 1; }
+        .stop-input-wrap.confirmed .input { border-color: #2ecc71 !important; }
+        .stop-type-badge { display: inline-block; font-size: 10px; font-weight: bold; padding: 2px 7px; border-radius: 3px; margin-top: 3px; margin-left: 32px; letter-spacing: 0.5px; text-transform: uppercase; }
+        .badge-on  { background: #1a3a1a; color: #2ecc71; border: 1px solid #2ecc71; }
+        .badge-off { background: #3a1a1a; color: #e74c3c; border: 1px solid #e74c3c; }
+        .badge-far { background: #1a1a3a; color: #9b59b6; border: 1px solid #9b59b6; }
+
+        /* Stops breakdown */
+        .stops-breakdown { font-size: 12px; color: #aaa; margin-top: 6px; line-height: 1.6; text-align: left; padding: 8px 12px; background: #0a0a0a; border-radius: 5px; border: 1px solid #222; }
+        .stops-breakdown .on  { color: #2ecc71; }
+        .stops-breakdown .off { color: #e74c3c; }
+
+        /* Fare breakdown table */
+        .fare-breakdown { margin-top: 12px; text-align: left; background: #0a0a0a; border: 1px solid #2a2a2a; border-radius: 6px; padding: 10px 12px; font-size: 12px; }
+        .bd-row { display: flex; justify-content: space-between; padding: 3px 0; color: #bbb; }
+        .bd-row.surcharge { color: #f39c12; }
+        .bd-row.discount  { color: #2ecc71; }
+        .bd-row.bd-total  { color: #d4af37; font-weight: bold; font-size: 13px; margin-top: 2px; }
+        .bd-divider { border-top: 1px solid #333; margin: 6px 0; }
+        .surcharge-notice { display: inline-block; background: #2a1a00; color: #f39c12; border: 1px solid #f39c12; border-radius: 4px; font-size: 10px; padding: 3px 8px; margin-top: 6px; font-weight: bold; letter-spacing: 0.5px; }
+
+        /* Support FAB */
+        #support-fab { position: fixed; bottom: 22px; right: 18px; z-index: 9999; background: #25D366; color: #fff; border: none; border-radius: 50px; padding: 12px 18px; font-size: 13px; font-weight: bold; font-family: 'Times New Roman', serif; cursor: pointer; box-shadow: 0 4px 18px rgba(37,211,102,0.45); display: flex; align-items: center; gap: 8px; text-decoration: none; letter-spacing: 0.5px; transition: background 0.2s, transform 0.15s; }
+        #support-fab:hover { background: #1ebe5d; transform: scale(1.04); }
+        #support-fab svg { flex-shrink: 0; }
+
+        /* Saved profile banner */
+        .profile-banner { background: #0d1f0d; border: 1px solid #2ecc71; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+        .profile-banner-text { color: #2ecc71; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
+        .profile-banner-sub  { color: #aaa; font-size: 11px; margin-top: 2px; text-transform: none; font-weight: normal; }
+        .profile-btn { border: none; border-radius: 4px; padding: 6px 12px; font-size: 11px; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 0.4px; font-family: 'Times New Roman', serif; }
+        .profile-btn-clear  { background: #2a0a0a; color: #e74c3c; border: 1px solid #e74c3c; }
+        .profile-btn-save   { background: #d4af37; color: #000; }
+        .profile-btn-save:hover  { background: #f1c40f; }
+        .profile-btn-clear:hover { background: #3a1010; }
+        .save-confirm { color: #2ecc71; font-size: 11px; text-align: center; margin-top: 4px; display: none; }
+
+        /* Discount */
+        .discount-btn { background: #1a1a1a; color: #2ecc71; border: 1px solid #2ecc71; }
+        .discount-btn:hover { background: #0d1f0d; }
+        .discount-msg { font-size: 12px; margin-top: 6px; text-align: center; min-height: 14px; }
+        .discount-total-box { border-color: #2ecc71; }
+        .discount-total-box .price-ttd { color: #2ecc71; font-size: 22px; }
+        .discount-total-box .price-was { font-size: 12px; color: #888; text-decoration: line-through; display: block; margin-top: 2px; }
+    </style>
+</head>
+<body>
+
+<a href="https://wa.me/18683568145?text=Hi%2C%20I%20need%20support%20with%20the%20Black%20Carpet%20booking%20page." id="support-fab" target="_blank" title="Contact Support on WhatsApp">
+    <svg fill="white" height="18" viewBox="0 0 24 24" width="18" xmlns="http://www.w3.org/2000/svg">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"></path>
+    </svg>
+    Support
+</a>
+
+<div id="bc-app">
+    <div class="brand-header-container">
+        <img alt="Logo" class="brand-logo" src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhumpOP0rncmNTJDAP8RV3pBVb11HqIaF1w7lGnFSkHt8ky60noL-dHHP7aoU1fxA08tMPYswW3kJwTHg2SAsKxdfnNNmaB1By3_CJ0a31_6ijpf6xNhU9Pe98SmFmIhyphenhyphen8H16IiHDnbHWZYaAhL6x2zZ650E59PxwsLGnmaE9a13kalBZDRMxS_PGjusKM/s1254/1000065419.png">
+        <div class="brand-name">Black Carpet Rideshare &amp; Logistics</div>
+    </div>
+    <div class="policy-notice">
+        <strong>Important Notice:</strong><br>
+        • Minimum 3-hour prep time required for all bookings.<br>
+        • Car seats/boosters are mandatory for children per T&amp;T Transport Laws.<br>
+        • To add another ride or restart putting in the details, please refresh this page.<br>
+        • Cancellation/inconvenience fee $35TTD paid to the inconvenienced.<br>
+        • Wait time $2 per min.<br>
+        • Please type in the exact street name or building for accurate driver GPS.<br>
+        • For card paying customers all transactional fees apply.<br>
+    </div>
+
+    <!-- STEP 1 -->
+    <div class="step active" id="step1">
+        <label class="label">Service Category</label>
+        <select class="select" id="category" onchange="toggleCategory()">
+            <option value="One Way">One Way Trip</option>
+            <option value="Round Trip">Round Trip</option>
+            <option value="Hourly Rental">Hourly Rental ($120 TTD/hr)</option>
+            <option value="Daily Rental">Daily Rental ($200 USD/12hr)</option>
+        </select>
+        <div class="hidden" id="rental-options">
+            <label class="label" id="rental-label">Qty (Hours/Days)</label>
+            <input class="input" id="rental-qty" min="1" type="number" value="1">
+        </div>
+        <label class="label">Timing</label>
+        <select class="select" id="booking-type" onchange="toggleSchedule()">
+            <option value="now">Book Now (3 Hr Prep)</option>
+            <option value="future">Schedule for Future</option>
+        </select>
+        <div class="hidden" id="schedule-fields">
+            <label class="label">Choose Pickup Time (Min. 3hrs from now)</label>
+            <input class="input" id="pickup-time" onchange="validateTime()" type="datetime-local">
+            <span class="field-error" id="err-pickup-time">Please select a valid pickup time.</span>
+        </div>
+        <label class="label">Vehicle Type</label>
+        <div class="vehicle-grid" id="vehicle-grid"></div>
+        <label class="label">Pickup Location <span style="color: #e74c3c;">*</span></label>
+        <input autocomplete="off" class="input" id="p_addr" placeholder="Type or click map for Pickup..." type="text">
+        <span class="field-error" id="err-p_addr">Pickup location is required.</span>
+        <label class="label">Drop-off Location <span style="color: #e74c3c;">*</span></label>
+        <input autocomplete="off" class="input" id="d_addr" placeholder="Type or click map for Drop-off..." type="text">
+        <span class="field-error" id="err-d_addr">Drop-off location is required.</span>
+        <div id="bc-map"></div>
+        <div class="map-tip">Tip: Tap map once for Pickup (Blue), once more for Drop-off (Red).</div>
+        <button class="reset-btn" onclick="resetPins()">❌ Clear &amp; Unpin Locations</button>
+
+        <div id="extra-stops-section">
+            <label class="label">
+                Extra Stops
+                <span style="color: #aaaaaa; font-size: 10px; font-weight: normal; margin-left: 6px; text-transform: none;">
+                    — ≤3km +$10 &nbsp;|&nbsp; ≤8km +$20 &nbsp;|&nbsp; &gt;8km priced by distance
+                </span>
+            </label>
+            <select class="select" id="stops_count" onchange="rebuildStopInputs()">
+                <option value="0">No extra stops</option>
+                <option value="1">1 stop</option>
+                <option value="2">2 stops</option>
+                <option value="3">3 stops</option>
+                <option value="4">4 stops</option>
+                <option value="5">5 stops</option>
+                <option value="6">6 stops</option>
+            </select>
+            <div class="hidden" id="stop-inputs-container">
+                <label class="label">
+                    Stop Locations
+                    <span style="color: #d4af37; font-size: 10px; font-weight: normal; text-transform: none;">
+                        — Type detected after Calculate Rate
+                    </span>
+                </label>
+                <div id="stop-inputs-list"></div>
+                <span class="field-error" id="err-stop_locs">Please search and confirm all stop locations.</span>
+            </div>
+        </div>
+
+        <button class="btn" onclick="calculateTotal()">Calculate Rate</button>
+        <div class="summary" id="quoteDisplay" style="display: none;">
+            <div id="routeStats" style="color: #aaaaaa; font-size: 13px; margin-bottom: 5px;"></div>
+            <div class="fare-breakdown hidden" id="fare-breakdown"></div>
+            <div class="stops-breakdown hidden" id="stops-breakdown"></div>
+            <span class="price-ttd" id="totalTTD">$0.00</span>
+            <span class="price-usd" id="totalUSD">$0.00 USD</span>
+
+            <!-- EMAIL DISCOUNT (Step 1) — only shown if at least one customer discount is currently enabled -->
+            <div class="hidden" id="discount-section-s1" style="margin-top: 14px; text-align: left;">
+                <label class="label" style="margin-top: 0;">Have a Discount? Enter Your Email</label>
+                <input autocomplete="off" class="input" id="email_step1" placeholder="you@example.com" type="email">
+                <button class="btn discount-btn" onclick="applyEmailDiscount()" type="button">🎟️ Apply Discount</button>
+                <div class="discount-msg" id="discount-msg-s1"></div>
+                <div class="summary discount-total-box hidden" id="discount-total-box-s1">
+                    <div style="color:#aaaaaa; font-size:12px;">Updated Total After Discount</div>
+                    <span class="price-ttd" id="discountedTotalTTD-s1">$0.00</span>
+                    <span class="price-was" id="discountedTotalWas-s1"></span>
+                </div>
+            </div>
+
+            <button class="btn" onclick="goToStep(2)">Proceed</button>
+        </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="step" id="step2">
+
+        <!-- Saved profile banner (shown when a profile exists) -->
+        <div class="profile-banner hidden" id="profile-banner">
+            <div>
+                <div class="profile-banner-text"> Saved Profile Loaded</div>
+                <div class="profile-banner-sub" id="profile-banner-sub"></div>
+            </div>
+            <button class="profile-btn profile-btn-clear" onclick="clearSavedProfile()">✕ Clear Profile</button>
+        </div>
+
+        <label class="label">Client Info</label>
+        <input class="input" id="name" placeholder="Full Name *" type="text">
+        <span class="field-error" id="err-name">Full name is required.</span>
+        <input class="input" id="phone" placeholder="WhatsApp Number *" type="tel">
+        <span class="field-error" id="err-phone">WhatsApp number is required.</span>
+        <input class="input" id="email" placeholder="Email Address *" type="email">
+        <span class="field-error" id="err-email">A valid email address is required.</span>
+
+        <label class="label">Payment Option</label>
+        <select class="select" id="payment_method">
+            <option value="Cash">Cash</option>
+            <option value="Linx">Linx</option>
+            <option value="Credit Card">Credit Card</option>
+        </select>
+        <label class="label">Passenger Manifest <span style="color: #e74c3c;">*</span></label>
+        <div class="row">
+            <div class="col"><label class="label">Males</label><input class="input" id="m" min="0" type="number" value="0"></div>
+            <div class="col"><label class="label">Females</label><input class="input" id="f" min="0" type="number" value="0"></div>
+            <div class="col"><label class="label">Kids</label><input class="input" id="k" min="0" type="number" value="0"></div>
+            <div class="col"><label class="label">Bags</label><input class="input" id="b" min="0" type="number" value="0"></div>
+        </div>
+        <span class="field-error" id="err-passengers">At least 1 passenger (male, female, or kid) is required.</span>
+        <label class="label">Additional Notes</label>
+        <textarea class="textarea" id="notes" placeholder="Landmarks, flight numbers, or special requests..."></textarea>
+        <button class="btn" onclick="validateAndReview()">Review Manifest</button>
+        <button class="profile-btn profile-btn-save" id="save-profile-btn" onclick="saveProfile()" style="margin-top: 10px; width: 100%;">💾 Save My Details for Next Time</button>
+        <div class="save-confirm" id="save-confirm">✓ Profile saved to this device!</div>
+        <button class="btn" onclick="goToStep(1)" style="background: none; color: #888888;">Back</button>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="step" id="step3">
+        <h3 style="color: #d4af37; text-align: center;">EXECUTIVE REVIEW</h3>
+        <div class="review-box" id="reviewContent"></div>
+        <button class="btn" onclick="printReceipt()" style="background: #1a1a1a; color: #d4af37; border: 1px solid #d4af37;">🖨️ Print Receipt</button>
+        <button class="btn" onclick="bookNow()">Confirm via WhatsApp</button>
+        <button class="btn" onclick="goToStep(2)" style="background: none; color: #888888; margin-top: 10px;">Edit Details</button>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // ── Globals ──────────────────────────────────────────────────────────────
+    var map, pMarker, dMarker;
+    var fareTTD = 0, baseRideFare = 0, extraStopsCost = 0;
+    var surchargeApplied = false, surchargeAmt = 0;
+    var rushHourApplied = false, rushHourAmt = 0;
+    var airportApplied = false, airportAmt = 0;
+    var nightFee = 0;
+    var stopData = {};
+
+    // ── GEOAPIFY KEY ─────────────────────────────────────────────────────────
+    // Browser-side key. In your Geoapify dashboard (My Projects → API Keys),
+    // restrict it to your GitHub Pages URL so nobody else can use it.
+    var GEOAPIFY_KEY = '48aba94e03254a6c9a7a1447674d4b8a';
+
+    // ── EMAIL DISCOUNTS ──────────────────────────────────────────────────────
+    // Add a customer's email (all lowercase) below, mapped to their discount.
+    // Discounts can be used an UNLIMITED number of times by that email.
+    //
+    // Every entry supports an "enabled" switch so you can turn a customer's
+    // discount off (e.g. a promo ended, or you want to pause it) WITHOUT
+    // deleting their entry — just flip enabled to false. Flip it back to true
+    // whenever you want to turn it on again.
+    //
+    // FLAT AMOUNT (TTD off the fare):
+    //   'john@example.com': { amount: 10, enabled: true },
+    //   'vip.client@gmail.com': { amount: 35, enabled: true },
+    //
+    // PERCENTAGE (% off the fare):
+    //   'someone@example.com': { type: 'percent', amount: 10, enabled: true }, // 10% off
+    //
+    // Add as many lines as you like — just keep the comma after each one
+    // except the very last line.
+    var DISCOUNT_EMAILS = {
+        'blackcarpetridesharelogistics@gmail.com': { amount: 37, enabled: true },
+        'kafra.morris@gmail.com': { amount: 37, enabled: true },
+    };
+
+    // Discounts only apply to rides at or above this fare (TTD). Change this
+    // number to raise/lower the minimum spend required to use a discount.
+    var DISCOUNT_MIN_FARE = 130;
+
+    var discountAmt = 0, discountApplied = false, discountEmailUsed = null, discountLabel = '';
+
+    // ── VEHICLE CONFIG ───────────────────────────────────────────────────────
+    // To take a vehicle OFF the market, set comingSoon: true for that entry.
+    // It will show a grey "Coming Soon" overlay and customers won't be able to
+    // click/select it. Flip it back to false whenever it's ready to book.
+    var VEHICLES = [
+        { id: 'standard',    label: 'Standard (4 Seater)',      mult: 1.50, comingSoon: false },
+        { id: 'suv5',        label: 'Premium SUV (5 Seater)',   mult: 2.1,  comingSoon: false },
+        { id: 'suv7',        label: '7 Seater SUV',             mult: 2.45, comingSoon: true },
+        { id: 'maxi_small',  label: 'Small Maxi (12 Seater)',   mult: 3.5,  comingSoon: true },
+        { id: 'maxi_large',  label: 'Large Maxi (24 Seater)',   mult: 5.6,  comingSoon: true }
+    ];
+    var selectedVehicleId = null;
+
+    // ── PRICING CONSTANTS ────────────────────────────────────────────────────
+    var BASE_FARE      = 18;    // TTD flat base (Standard vehicle)
+    var RATE_PER_KM    = 2.50;     // TTD per km   (Standard vehicle)
+    var SURCHARGE_RATE = 0.10;  // 10% night / weekend surcharge
+    var PREP_TIME_MS   = 3 * 60 * 60 * 1000; // 3-hour minimum prep time for "Book Now"
+
+    // Rush-hour surcharge — a % added to the ride fare when pickup falls inside
+    // any of the windows below. To adjust: change RUSH_HOUR_SURCHARGE_RATE
+    // (0.15 = 15%), or edit/add windows. "days" uses 0=Sun, 1=Mon ... 6=Sat.
+    // startHour/endHour can use decimals for the half-hour, e.g. 6.5 = 6:30am.
+    var RUSH_HOUR_SURCHARGE_RATE = 0.15; // 15% during peak traffic hours
+    var RUSH_HOUR_WINDOWS = [
+        { days: [1,2,3,4,5], startHour: 6.5,  endHour: 9 },    // Mon-Fri 6:30am-9:00am
+        { days: [1,2,3,4,5], startHour: 15.5, endHour: 18.5 }  // Mon-Fri 3:30pm-6:30pm
+    ];
+
+    // Airport surcharge — a flat amount added when pickup OR drop-off is an
+    // airport. Detected by checking the address text for any of the keywords
+    // below (case-insensitive). Add/remove keywords to match your area.
+    var AIRPORT_SURCHARGE = 23; // TTD flat surcharge for airport runs
+    var AIRPORT_KEYWORDS = ['airport', 'piarco', 'anr robinson', 'crown point'];
+
+    // Late-night flat fee: applies when the pickup hour is 10pm (22:00) or later.
+    // Not broken out for the customer on-page — it is folded into the grand total,
+    // and only appears as a simple line item on the final manifest.
+    var NIGHT_FEE_FAR    = 270; // distances beyond 15km
+    var NIGHT_FEE_NEAR   = 200; // distances from 1km up to 15km
+    var NIGHT_FEE_SHORT  = 200; // extra fee stacked on top for any trip under 10km
+    var NIGHT_FEE_LONG   = 270; // extra fee stacked on top for any trip over 11km
+
+    // ── STOP DISTANCE HELPERS ────────────────────────────────────────────────
+    // All stop pricing is measured from the DROP-OFF point (straight-line haversine).
+    // Tier 1 : <= 3 km from drop-off  → $10 TTD  (Near / On-Route)
+    // Tier 2 : <= 8 km from drop-off  → $20 TTD  (Off-Route)
+    // Tier 3 : >  8 km from drop-off  → $3/km from drop-off (Distance-Based)
+
+    function toRad(deg) { return deg * Math.PI / 180; }
+
+    function haversineKm(lat1, lng1, lat2, lng2) {
+        var R = 6371;
+        var dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+        var a = Math.sin(dLat/2)*Math.sin(dLat/2) +
+                Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)*Math.sin(dLng/2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    // Returns { tier: 'near'|'off'|'far', km: number, cost: number }
+    function classifyStop(stopLat, stopLng) {
+        if (!dMarker) return { tier: 'near', km: 0, cost: 10 };
+        var p  = dMarker.getLatLng();
+        var km = haversineKm(stopLat, stopLng, p.lat, p.lng);
+        if (km <= 3)  return { tier: 'near', km: km, cost: 10 };
+        if (km <= 8)  return { tier: 'off',  km: km, cost: 20 };
+        return           { tier: 'far',  km: km, cost: parseFloat((km * 3).toFixed(2)) };
+    }
+
+    // ── BOOKING DATE/TIME HELPER ─────────────────────────────────────────────
+    // Centralized so "Book Now" always resolves to now + PREP_TIME_MS everywhere
+    // (surcharge check, night fee check, and the manifest date/time).
+    function getBookingDateTime() {
+        var bType = document.getElementById('booking-type').value;
+        return bType === 'now'
+            ? new Date(Date.now() + PREP_TIME_MS)
+            : new Date(document.getElementById('pickup-time').value);
+    }
+
+    // ── SURCHARGE LOGIC ──────────────────────────────────────────────────────
+    // Night  : 21:00 – 04:59
+    // Weekend: Friday 21:00 onwards, all Saturday, all Sunday
+    function isSurchargeApplicable() {
+        var dt   = getBookingDateTime();
+        var hour = dt.getHours();
+        var day  = dt.getDay(); // 0=Sun,1=Mon,…,5=Fri,6=Sat
+        var isNight      = (hour >= 21 || hour < 5);
+        var isFridayNight = (day === 5 && hour >= 21);
+        var isSaturday   = (day === 6);
+        var isSunday     = (day === 0);
+        return isNight || isFridayNight || isSaturday || isSunday;
+    }
+
+    // ── RUSH-HOUR SURCHARGE LOGIC ────────────────────────────────────────────
+    // Checks the pickup time against RUSH_HOUR_WINDOWS above.
+    function isRushHourApplicable() {
+        var dt   = getBookingDateTime();
+        var day  = dt.getDay();
+        var hour = dt.getHours() + (dt.getMinutes() / 60);
+        for (var i = 0; i < RUSH_HOUR_WINDOWS.length; i++) {
+            var w = RUSH_HOUR_WINDOWS[i];
+            if (w.days.indexOf(day) !== -1 && hour >= w.startHour && hour < w.endHour) return true;
+        }
+        return false;
+    }
+
+    // ── AIRPORT SURCHARGE LOGIC ──────────────────────────────────────────────
+    // Checks the pickup and drop-off address text for any AIRPORT_KEYWORDS.
+    function isAirportRun() {
+        var p = (document.getElementById('p_addr').value || '').toLowerCase();
+        var d = (document.getElementById('d_addr').value || '').toLowerCase();
+        for (var i = 0; i < AIRPORT_KEYWORDS.length; i++) {
+            var kw = AIRPORT_KEYWORDS[i];
+            if (p.indexOf(kw) !== -1 || d.indexOf(kw) !== -1) return true;
+        }
+        return false;
+    }
+
+    // ── LATE-NIGHT FLAT FEE ──────────────────────────────────────────────────
+    // Applies for pickups between 22:00 (10pm) and 04:59 (just before 5am).
+    // Distance bands are mutually exclusive (no stacking).
+    // This is intentionally NOT itemized in the on-page fare breakdown —
+    // only the resulting total (folded into "Night Fee") is shown on the manifest.
+    function computeNightFee(dt, km) {
+        var hour = dt.getHours();
+        var isNightWindow = (hour >= 22 || hour < 5);
+        if (!isNightWindow) return 0;
+        if (km > 15) return NIGHT_FEE_FAR;
+        if (km > 11) return NIGHT_FEE_LONG;
+        if (km < 10) return NIGHT_FEE_SHORT;
+        return NIGHT_FEE_NEAR;
+    }
+
+    // ── CORE FARE CALCULATOR ─────────────────────────────────────────────────
+    // Formula: (BASE_FARE + RATE_PER_KM × km) × vehicleMult [× 1.9 if roundtrip]
+    //          + surcharge (10% of ride fare)
+    //          + rush-hour surcharge (15% of ride fare, peak times only)
+    //          + airport surcharge (flat $23 TTD if pickup/drop-off is an airport)
+    //          + extra stop costs
+    //          + late-night flat fee (added silently, not itemized on-page)
+    function computeFare(km, cat, mult) {
+        // Distance fare at Standard rate
+        var distFare = BASE_FARE + (RATE_PER_KM * km);
+        // Round-trip multiplier
+        if (cat === 'Round Trip') distFare *= 1.9;
+        // Vehicle multiplier
+        var rideFare = distFare * mult;
+        // Night/weekend surcharge on ride fare only
+        surchargeApplied = isSurchargeApplicable();
+        surchargeAmt = surchargeApplied ? rideFare * SURCHARGE_RATE : 0;
+        // Rush-hour surcharge on ride fare only
+        rushHourApplied = isRushHourApplicable();
+        rushHourAmt = rushHourApplied ? rideFare * RUSH_HOUR_SURCHARGE_RATE : 0;
+        // Airport surcharge — flat amount, not a % of ride fare
+        airportApplied = isAirportRun();
+        airportAmt = airportApplied ? AIRPORT_SURCHARGE : 0;
+        // Store base for manifest reference
+        baseRideFare = rideFare;
+        // Late-night flat fee (10pm+), based on trip distance
+        nightFee = computeNightFee(getBookingDateTime(), km);
+        // Grand total
+        fareTTD = rideFare + surchargeAmt + rushHourAmt + airportAmt + extraStopsCost + nightFee;
+        // A new rate calculation invalidates any previously applied discount
+        resetDiscount();
+        return { distFare: distFare, rideFare: rideFare };
+    }
+
+    function renderFareBreakdown(km, isEstimated, cat, mult, parts) {
+        var bd = document.getElementById('fare-breakdown');
+        bd.classList.remove('hidden');
+        var vehLabel = getSelectedVehicle().label.split('(')[0].trim();
+        var kmLabel  = km.toFixed(1) + (isEstimated ? ' km est.' : ' km');
+
+        var html =
+            '<div class="bd-row"><span>Base fare</span><span>$' + Math.round(BASE_FARE).toFixed(2) + ' TTD</span></div>' +
+            '<div class="bd-row"><span>' + kmLabel + ' &times; $' + RATE_PER_KM + '/km</span><span>$' + Math.round((RATE_PER_KM * km)).toFixed(2) + ' TTD</span></div>';
+
+        if (cat === 'Round Trip')
+            html += '<div class="bd-row"><span>Round trip &times;1.9</span><span>= $' + Math.round(parts.distFare).toFixed(2) + ' TTD</span></div>';
+
+        if (mult !== 1)
+            html += '<div class="bd-row"><span>' + vehLabel + ' &times;' + mult + '</span><span>= $' + Math.round(parts.rideFare).toFixed(2) + ' TTD</span></div>';
+
+        if (surchargeApplied)
+            html += '<div class="bd-row surcharge"><span>Night/Weekend +10%</span><span>+$' + Math.round(surchargeAmt).toFixed(2) + ' TTD</span></div>';
+
+        if (rushHourApplied)
+            html += '<div class="bd-row surcharge"><span>Rush Hour +' + (RUSH_HOUR_SURCHARGE_RATE*100) + '%</span><span>+$' + Math.round(rushHourAmt).toFixed(2) + ' TTD</span></div>';
+
+        // Note: the airport surcharge (airportAmt) is intentionally NOT itemized
+        // here — it is still included in fareTTD/grand total below, same as the
+        // late-night flat fee.
+
+        if (extraStopsCost > 0)
+            html += '<div class="bd-row"><span>Extra stops</span><span>+$' + Math.round(extraStopsCost).toFixed(2) + ' TTD</span></div>';
+
+        // Note: the late-night flat fee (nightFee) is intentionally NOT itemized here.
+        // It is still included in fareTTD/grand total below.
+
+        html += '<div class="bd-divider"></div>' +
+                '<div class="bd-row bd-total"><span>Grand Total</span><span>$' + Math.round(fareTTD).toFixed(2) + ' TTD</span></div>';
+
+        bd.innerHTML = html;
+    }
+
+    // ── STOP CLASSIFICATION ──────────────────────────────────────────────────
+    function classifyStopsAndGetCost() {
+        var total = parseInt(document.getElementById('stops_count').value) || 0;
+        var cost = 0, nearCount = 0, offCount = 0, farCount = 0, farCost = 0;
+
+        for (var i = 0; i < total; i++) {
+            var sd = stopData[i];
+            if (!sd) continue;
+
+            var result = classifyStop(sd.lat, sd.lng);
+            sd.tier    = result.tier;
+            sd.stopKm  = result.km;
+            sd.stopCost = result.cost;
+            cost += result.cost;
+
+            if (result.tier === 'near') nearCount++;
+            else if (result.tier === 'off')  offCount++;
+            else { farCount++; farCost += result.cost; }
+
+            var badge = document.getElementById('stop-badge-' + i);
+            if (badge) {
+                badge.classList.remove('hidden','badge-on','badge-off','badge-far');
+                if (result.tier === 'near') {
+                    badge.className = 'stop-type-badge badge-on';
+                    badge.textContent = 'Near (' + result.km.toFixed(1) + ' km) +$10 TTD';
+                } else if (result.tier === 'off') {
+                    badge.className = 'stop-type-badge badge-off';
+                    badge.textContent = 'Off-Route (' + result.km.toFixed(1) + ' km) +$20 TTD';
+                } else {
+                    badge.className = 'stop-type-badge badge-far';
+                    badge.textContent = 'Far (' + result.km.toFixed(1) + ' km) +$' + Math.round(result.cost).toFixed(2) + ' TTD';
+                }
+            }
+        }
+
+        var breakdown = document.getElementById('stops-breakdown');
+        if (total > 0) {
+            breakdown.classList.remove('hidden');
+            var html = '';
+            if (nearCount > 0) html += '<span class="on">&le;3km stops: ' + nearCount + ' &times; $10 = $' + (nearCount*10) + ' TTD</span><br>';
+            if (offCount  > 0) html += '<span class="off">&le;8km stops: ' + offCount  + ' &times; $20 = $' + (offCount*20)  + ' TTD</span><br>';
+            if (farCount  > 0) html += '<span style="color:#9b59b6">&gt;8km stops: ' + farCount + ' (distance-based) = $' + Math.round(farCost).toFixed(2) + ' TTD</span>';
+            breakdown.innerHTML = html;
+        } else { breakdown.classList.add('hidden'); }
+
+        return cost;
+    }
+
+    // ── GEOAPIFY: AUTOCOMPLETE + REVERSE GEOCODING ──────────────────────────
+    function attachAutocomplete(input, onPick) {
+        var box = document.createElement('div');
+        box.className = 'mb-suggest';
+        input.insertAdjacentElement('afterend', box);
+        var timer;
+        input.addEventListener('input', function () {
+            clearTimeout(timer);
+            var q = input.value.trim();
+            if (q.length < 3) { box.style.display = 'none'; return; }
+            timer = setTimeout(function () {
+                fetch('https://api.geoapify.com/v1/geocode/autocomplete?text=' + encodeURIComponent(q) +
+                      '&filter=countrycode:tt&bias=proximity:-61.35,10.65&limit=5&format=json&apiKey=' + GEOAPIFY_KEY)
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    box.innerHTML = '';
+                    (d.results || []).forEach(function (f) {
+                        var item = document.createElement('div');
+                        item.className = 'mb-item';
+                        item.textContent = f.formatted;
+                        item.addEventListener('pointerdown', function (e) {
+                            e.preventDefault();
+                            input.value = f.formatted;
+                            box.style.display = 'none';
+                            onPick(f.formatted, f.lat, f.lon);
+                        });
+                        box.appendChild(item);
+                    });
+                    box.style.top = (input.offsetTop + input.offsetHeight) + 'px';
+                    box.style.left = input.offsetLeft + 'px';
+                    box.style.width = input.offsetWidth + 'px';
+                    box.style.display = box.children.length ? 'block' : 'none';
+                }).catch(function () {});
+            }, 250);
+        });
+        input.addEventListener('blur', function () { setTimeout(function () { box.style.display = 'none'; }, 200); });
+    }
+
+    function reverseGeocode(lat, lng, cb) {
+        fetch('https://api.geoapify.com/v1/geocode/reverse?lat=' + lat + '&lon=' + lng +
+              '&format=json&apiKey=' + GEOAPIFY_KEY)
+        .then(function (r) { return r.json(); })
+        .then(function (d) { cb(d.results && d.results[0] ? d.results[0].formatted : lat.toFixed(5) + ', ' + lng.toFixed(5)); })
+        .catch(function () { cb(lat.toFixed(5) + ', ' + lng.toFixed(5)); });
+    }
+
+    // ── MAP INIT (after window load) ─────────────────────────────────────────
+    window.addEventListener('load', function () {
+        map = L.map('bc-map').setView([10.65, -61.35], 9);
+        L.tileLayer('https://maps.geoapify.com/v1/tile/osm-bright/{z}/{x}/{y}.png?apiKey=' + GEOAPIFY_KEY, {
+            maxZoom: 19,
+            attribution: 'Powered by <a href="https://www.geoapify.com/" target="_blank">Geoapify</a> | © OpenMapTiles © OpenStreetMap contributors'
+        }).addTo(map);
+
+        attachAutocomplete(document.getElementById('p_addr'), function (addr, lat, lng) { setMarker('p', [lat, lng], addr); });
+        attachAutocomplete(document.getElementById('d_addr'), function (addr, lat, lng) { setMarker('d', [lat, lng], addr); });
+
+        map.on('click', function (e) {
+            var ll = [e.latlng.lat, e.latlng.lng];
+            if (pMarker && dMarker) return;
+            reverseGeocode(e.latlng.lat, e.latlng.lng, function (addr) {
+                if (!pMarker) { setMarker('p', ll, addr); document.getElementById('p_addr').value = addr; }
+                else if (!dMarker) { setMarker('d', ll, addr); document.getElementById('d_addr').value = addr; }
+            });
+        });
+    });
+
+    function setMarker(type, ll, addr) {
+        if (type === 'p') {
+            if (pMarker) map.removeLayer(pMarker);
+            pMarker = L.marker(ll).addTo(map).bindPopup('Pickup: ' + addr).openPopup();
+        } else {
+            if (dMarker) map.removeLayer(dMarker);
+            dMarker = L.marker(ll, { icon: L.icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                iconSize: [25,41]
+            })}).addTo(map).bindPopup('Drop-off: ' + addr).openPopup();
+            if (pMarker) map.fitBounds([pMarker.getLatLng(), dMarker.getLatLng()], { padding: [50,50] });
+        }
+    }
+
+    // ── VEHICLE CARD GRID ─────────────────────────────────────────────────────
+    function getVehicleById(id) {
+        for (var i = 0; i < VEHICLES.length; i++) if (VEHICLES[i].id === id) return VEHICLES[i];
+        return null;
+    }
+
+    function getSelectedVehicle() {
+        return getVehicleById(selectedVehicleId) || VEHICLES[0];
+    }
+
+    function selectVehicle(id) {
+        var v = getVehicleById(id);
+        if (!v || v.comingSoon) return; // coming-soon vehicles cannot be selected
+        selectedVehicleId = id;
+        renderVehicleGrid();
+    }
+
+    function renderVehicleGrid() {
+        // Default to the first available (non coming-soon) vehicle if nothing valid is selected yet
+        if (!selectedVehicleId || (getVehicleById(selectedVehicleId) || {}).comingSoon) {
+            var firstAvailable = null;
+            for (var i = 0; i < VEHICLES.length; i++) {
+                if (!VEHICLES[i].comingSoon) { firstAvailable = VEHICLES[i]; break; }
+            }
+            selectedVehicleId = firstAvailable ? firstAvailable.id : VEHICLES[0].id;
+        }
+
+        var grid = document.getElementById('vehicle-grid');
+        grid.innerHTML = '';
+        VEHICLES.forEach(function (v) {
+            var card = document.createElement('div');
+            card.className = 'vehicle-card' +
+                (v.id === selectedVehicleId ? ' selected' : '') +
+                (v.comingSoon ? ' coming-soon' : '');
+            card.innerHTML =
+                '<div class="vehicle-card-label">' + v.label + '</div>' +
+                (v.comingSoon ? '<div class="coming-soon-overlay"><span>Coming Soon</span></div>' : '');
+            if (!v.comingSoon) {
+                card.addEventListener('click', function () { selectVehicle(v.id); });
+            }
+            grid.appendChild(card);
+        });
+    }
+    renderVehicleGrid();
+
+    function rebuildStopInputs() {
+        var total     = parseInt(document.getElementById('stops_count').value) || 0;
+        var container = document.getElementById('stop-inputs-container');
+        var list      = document.getElementById('stop-inputs-list');
+
+        if (total === 0) {
+            container.classList.add('hidden');
+            list.innerHTML = '';
+            stopData = {};
+            document.getElementById('stops-breakdown').classList.add('hidden');
+            return;
+        }
+        container.classList.remove('hidden');
+        var currentCount = list.querySelectorAll('.stop-input-wrap').length;
+
+        if (total > currentCount) {
+            for (var i = currentCount; i < total; i++) {
+                var wrap = document.createElement('div');
+                wrap.className = 'stop-input-wrap';
+                wrap.id = 'stop-wrap-' + i;
+                wrap.innerHTML =
+                    '<span class="stop-num">' + (i+1) + '</span>' +
+                    '<input autocomplete="off" class="input" id="stop_input_' + i + '" placeholder="Stop ' + (i+1) + ' — type to search..." type="text" />' +
+                    '<span class="stop-confirmed">&#10003;</span>' +
+                    '<div class="stop-type-badge hidden" id="stop-badge-' + i + '"></div>';
+                list.appendChild(wrap);
+
+                (function (idx) {
+                    var inputEl = document.getElementById('stop_input_' + idx);
+                    attachAutocomplete(inputEl, function (addr, lat, lng) {
+                        stopData[idx] = { address: addr, lat: lat, lng: lng, isOnRoute: null };
+                        document.getElementById('stop-wrap-' + idx).classList.add('confirmed');
+                        inputEl.classList.remove('error');
+                        document.getElementById('stop-badge-' + idx).classList.add('hidden');
+                    });
+                    inputEl.addEventListener('input', function () {
+                        delete stopData[idx];
+                        document.getElementById('stop-wrap-' + idx).classList.remove('confirmed');
+                        document.getElementById('stop-badge-' + idx).classList.add('hidden');
+                    });
+                })(i);
+            }
+        } else if (total < currentCount) {
+            for (var j = currentCount - 1; j >= total; j--) {
+                var el = document.getElementById('stop-wrap-' + j);
+                if (el) el.remove();
+                delete stopData[j];
+            }
+        }
+
+        for (var k = 0; k < total; k++) {
+            var numEl = document.querySelector('#stop-wrap-' + k + ' .stop-num');
+            if (numEl) numEl.textContent = k + 1;
+        }
+    }
+
+    // ── MAIN CALCULATE ───────────────────────────────────────────────────────
+    async function calculateTotal() {
+        var cat      = document.getElementById('category').value;
+        var mult     = getSelectedVehicle().mult;
+        var isRental = cat.includes('Rental');
+        var hasError = false;
+
+        if (!isRental) {
+            if (!pMarker || !document.getElementById('p_addr').value.trim()) { showError('p_addr', true);  hasError = true; } else { showError('p_addr', false); }
+            if (!dMarker || !document.getElementById('d_addr').value.trim()) { showError('d_addr', true);  hasError = true; } else { showError('d_addr', false); }
+
+            var totalStops = parseInt(document.getElementById('stops_count').value) || 0;
+            if (totalStops > 0) {
+                var stopsOk = true;
+                for (var i = 0; i < totalStops; i++) {
+                    if (!stopData[i]) {
+                        var el = document.getElementById('stop_input_' + i);
+                        if (el) el.classList.add('error');
+                        stopsOk = false;
+                    }
+                }
+                if (!stopsOk) { showError('stop_locs', true); hasError = true; } else { showError('stop_locs', false); }
+            } else { showError('stop_locs', false); }
+        }
+
+        if (hasError) return;
+
+        extraStopsCost = isRental ? 0 : classifyStopsAndGetCost();
+
+        if (!isRental) {
+            try {
+                var controller = new AbortController();
+                var tid = setTimeout(function () { controller.abort(); }, 4000);
+                var resp = await fetch(
+                    'https://router.project-osrm.org/route/v1/driving/' +
+                    pMarker.getLatLng().lng + ',' + pMarker.getLatLng().lat + ';' +
+                    dMarker.getLatLng().lng + ',' + dMarker.getLatLng().lat + '?overview=false',
+                    { signal: controller.signal }
+                );
+                clearTimeout(tid);
+                var data = await resp.json();
+                if (data.code === 'Ok') {
+                    var km  = data.routes[0].distance / 1000;
+                    var min = data.routes[0].duration / 60;
+                    var parts = computeFare(km, cat, mult);
+                    renderFareBreakdown(km, false, cat, mult, parts);
+                    document.getElementById('routeStats').innerHTML = km.toFixed(1) + ' km | ' + Math.round(min) + ' mins';
+                } else { throw new Error(); }
+            } catch (e) {
+                var dist  = pMarker.getLatLng().distanceTo(dMarker.getLatLng()) / 1000;
+                var estKm = dist * 1.3;
+                var parts = computeFare(estKm, cat, mult);
+                renderFareBreakdown(estKm, true, cat, mult, parts);
+                document.getElementById('routeStats').innerHTML = estKm.toFixed(1) + ' km (Estimated)';
+            }
+        } else {
+            var qty = parseInt(document.getElementById('rental-qty').value) || 1;
+            baseRideFare = (cat === 'Hourly Rental' ? 120 : 1360) * qty;
+            fareTTD      = baseRideFare * mult;
+            surchargeApplied = false; surchargeAmt = 0; rushHourApplied = false; rushHourAmt = 0; airportApplied = false; airportAmt = 0; nightFee = 0;
+            resetDiscount();
+            document.getElementById('routeStats').innerHTML = 'Rental Mode Active';
+            document.getElementById('fare-breakdown').classList.add('hidden');
+        }
+
+        document.getElementById('totalTTD').innerText = 'TTD $' + Math.round(fareTTD).toFixed(2);
+        document.getElementById('totalUSD').innerText  = 'USD $' + Math.round((fareTTD / 6.8)).toFixed(2);
+        document.getElementById('quoteDisplay').style.display = 'block';
+    }
+
+    // ── EMAIL DISCOUNT LOGIC ─────────────────────────────────────────────────
+    function formatShortDate(d) {
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+    }
+
+    function setDiscountMessage(color, text) {
+        ['discount-msg', 'discount-msg-s1'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) { el.style.color = color; el.textContent = text; }
+        });
+    }
+
+    function resetDiscount() {
+        discountAmt = 0;
+        discountApplied = false;
+        discountEmailUsed = null;
+        discountLabel = '';
+        setDiscountMessage('', '');
+        updateDiscountDisplay();
+    }
+
+    function getFinalFare() {
+        var f = fareTTD - discountAmt;
+        return f > 0 ? f : 0;
+    }
+
+    function updateDiscountDisplay() {
+        var pairs = [
+            { box: 'discount-total-box',    amt: 'discountedTotalTTD',    was: 'discountedTotalWas' },
+            { box: 'discount-total-box-s1', amt: 'discountedTotalTTD-s1', was: 'discountedTotalWas-s1' }
+        ];
+        pairs.forEach(function (p) {
+            var box  = document.getElementById(p.box);
+            var amtE = document.getElementById(p.amt);
+            var wasE = document.getElementById(p.was);
+            if (!box) return;
+            if (discountApplied && discountAmt > 0) {
+                box.classList.remove('hidden');
+                amtE.innerText = 'TTD $' + Math.round(getFinalFare()).toFixed(2);
+                wasE.innerText = 'was $' + Math.round(fareTTD).toFixed(2) + ' TTD';
+            } else {
+                box.classList.add('hidden');
+            }
+        });
+    }
+
+    // Keep the Step 1 and Step 2 email fields in sync so a customer can enter
+    // their email on either screen and the discount still works.
+    function syncEmailFields(sourceId) {
+        var e1 = document.getElementById('email_step1');
+        var e2 = document.getElementById('email');
+        if (!e1 || !e2) return;
+        if (sourceId === 'email_step1') e2.value = e1.value;
+        else e1.value = e2.value;
+    }
+
+    // The "Have a Discount?" box only shows up for a customer whose SAVED
+    // PROFILE email (from "Save My Details for Next Time") matches an entry
+    // in DISCOUNT_EMAILS that is currently enabled. Everyone else — including
+    // first-time visitors with no saved profile — never sees the box at all.
+    // NOTE: this is tied to the browser/device the profile was saved on, since
+    // there's no login system here.
+    function getSavedProfileEmail() {
+        try {
+            var raw = localStorage.getItem(PROFILE_KEY);
+            if (!raw) return null;
+            var profile = JSON.parse(raw);
+            return profile.email ? profile.email.trim().toLowerCase() : null;
+        } catch (e) { return null; }
+    }
+
+    function isDiscountEnabledForEmail(email) {
+        if (!email) return false;
+        var entry = DISCOUNT_EMAILS[email];
+        if (entry === undefined) return false;
+        if (typeof entry === 'number') return true;
+        return entry.enabled !== false;
+    }
+
+    function refreshDiscountSectionVisibility() {
+        var section = document.getElementById('discount-section-s1');
+        if (!section) return;
+        var savedEmail = getSavedProfileEmail();
+        var shouldShow = isDiscountEnabledForEmail(savedEmail);
+        section.classList.toggle('hidden', !shouldShow);
+        if (shouldShow) {
+            // Pre-fill so the recognized customer doesn't have to retype their email
+            var e1 = document.getElementById('email_step1');
+            var e2 = document.getElementById('email');
+            if (e1 && !e1.value) e1.value = savedEmail;
+            if (e2 && !e2.value) e2.value = savedEmail;
+        }
+    }
+
+    function applyEmailDiscount() {
+      try {
+        var email = document.getElementById('email').value.trim().toLowerCase();
+
+        if (!fareTTD || fareTTD <= 0) {
+            setDiscountMessage('#e74c3c', 'Please calculate your rate first.');
+            return;
+        }
+
+        if (fareTTD < DISCOUNT_MIN_FARE) {
+            setDiscountMessage('#e74c3c', 'Discounts only apply to rides over $' + DISCOUNT_MIN_FARE.toFixed(2) + ' TTD.');
+            return;
+        }
+
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            setDiscountMessage('#e74c3c', 'Please enter a valid email first.');
+            return;
+        }
+
+        if (discountApplied && discountEmailUsed === email) {
+            setDiscountMessage('#f39c12', 'Discount already applied for this email.');
+            return;
+        }
+
+        var entry = DISCOUNT_EMAILS[email];
+        if (entry === undefined) {
+            discountAmt = 0; discountApplied = false; discountEmailUsed = null; discountLabel = '';
+            setDiscountMessage('#e74c3c', 'No discount found for this email.');
+            updateDiscountDisplay();
+            return;
+        }
+
+        // Per-customer on/off switch — set { enabled: false } on an entry to
+        // pause it without deleting it. Plain-number entries are always enabled.
+        var isEnabled = (typeof entry === 'number') || entry.enabled !== false;
+        if (!isEnabled) {
+            discountAmt = 0; discountApplied = false; discountEmailUsed = null; discountLabel = '';
+            setDiscountMessage('#e74c3c', 'This discount is currently turned off for this email.');
+            updateDiscountDisplay();
+            return;
+        }
+
+        var amt, label;
+        if (typeof entry === 'number') {
+            amt = entry;
+            label = '$' + Math.round(amt).toFixed(2) + ' TTD off';
+        } else if (entry && entry.type === 'percent') {
+            amt = fareTTD * (entry.amount / 100);
+            label = entry.amount + '% off';
+        } else {
+            amt = (entry && entry.amount) || 0;
+            label = '$' + Math.round(amt).toFixed(2) + ' TTD off';
+        }
+
+        discountAmt = amt;
+        discountApplied = true;
+        discountEmailUsed = email;
+        discountLabel = label;
+
+        setDiscountMessage('#2ecc71', '✓ Discount applied: ' + label + '!');
+        updateDiscountDisplay();
+      } catch (err) {
+        console.error('Discount error:', err);
+        setDiscountMessage('#e74c3c', 'Something went wrong applying the discount. Please refresh the page and try again.');
+      }
+    }
+
+    function printReceipt() {
+        var content = generateManifestText()
+            .replace(/\*/g, '')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        var w = window.open('', '_blank', 'width=420,height=650');
+        if (!w) {
+            alert('Please allow pop-ups for this site to print your receipt.');
+            return;
+        }
+        w.document.write(
+            '<html><head><title>Black Carpet Receipt</title>' +
+            '<style>body{font-family:monospace; white-space:pre-wrap; word-break:break-word; overflow-wrap:break-word; padding:24px; font-size:13px; color:#000;} ' +
+            'h2{font-family:"Times New Roman",serif; text-align:center; margin-bottom:4px;}</style>' +
+            '</head><body>' +
+            '<h2>Black Carpet Rideshare &amp; Logistics</h2><hr/>' +
+            content +
+            '</body></html>'
+        );
+        w.document.close();
+        w.focus();
+        setTimeout(function () { w.print(); }, 300);
+    }
+
+    // ── HELPERS ──────────────────────────────────────────────────────────────
+    function toggleCategory() {
+        var isRental = document.getElementById('category').value.includes('Rental');
+        document.getElementById('rental-options').classList.toggle('hidden', !isRental);
+        document.getElementById('extra-stops-section').classList.toggle('hidden', isRental);
+    }
+
+    function toggleSchedule() {
+        var isFuture = document.getElementById('booking-type').value === 'future';
+        document.getElementById('schedule-fields').classList.toggle('hidden', !isFuture);
+        var minTime  = new Date(); minTime.setTime(minTime.getTime() + PREP_TIME_MS);
+        var tzOffset = minTime.getTimezoneOffset() * 60000;
+        var fmt = new Date(minTime - tzOffset).toISOString().slice(0,16);
+        document.getElementById('pickup-time').setAttribute('min', fmt);
+        if (isFuture) document.getElementById('pickup-time').value = fmt;
+    }
+
+    function validateTime() {
+        var input    = document.getElementById('pickup-time');
+        var selected = new Date(input.value);
+        var minTime  = new Date(); minTime.setTime(minTime.getTime() + PREP_TIME_MS);
+        if (selected < minTime) {
+            alert('Policy: Minimum 3 hour prep time required.');
+            var tz = minTime.getTimezoneOffset() * 60000;
+            input.value = new Date(minTime - tz).toISOString().slice(0,16);
+        }
+    }
+
+    function resetPins() {
+        if (pMarker) map.removeLayer(pMarker);
+        if (dMarker) map.removeLayer(dMarker);
+        pMarker = dMarker = null;
+        document.getElementById('p_addr').value = '';
+        document.getElementById('d_addr').value = '';
+        document.getElementById('quoteDisplay').style.display = 'none';
+        document.getElementById('stops_count').value = '0';
+        rebuildStopInputs();
+        fareTTD = 0; baseRideFare = 0; extraStopsCost = 0; surchargeAmt = 0; surchargeApplied = false; rushHourApplied = false; rushHourAmt = 0; airportApplied = false; airportAmt = 0; nightFee = 0;
+        resetDiscount();
+        document.getElementById('fare-breakdown').classList.add('hidden');
+        document.getElementById('stops-breakdown').classList.add('hidden');
+        map.setView([10.65, -61.35], 9);
+    }
+
+    function goToStep(s) {
+        document.querySelectorAll('.step').forEach(function (d) { d.classList.remove('active'); });
+        document.getElementById('step' + s).classList.add('active');
+    }
+
+    function showError(fieldId, show) {
+        var field = document.getElementById(fieldId);
+        var errEl = document.getElementById('err-' + fieldId);
+        if (field) field.classList.toggle('error', show);
+        if (errEl) errEl.classList.toggle('visible', show);
+    }
+
+    function formatAMPM(dateObj) {
+        var h = dateObj.getHours(), m = dateObj.getMinutes().toString().padStart(2,'0');
+        var ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12 || 12;
+        return h + ':' + m + ' ' + ampm;
+    }
+
+    function getFullWordDate(dateObj) {
+        var days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        var d = dateObj.getDate(), sfx = 'th';
+        if (d===1||d===21||d===31) sfx='st';
+        else if (d===2||d===22) sfx='nd';
+        else if (d===3||d===23) sfx='rd';
+        return days[dateObj.getDay()] + ' ' + months[dateObj.getMonth()] + ' ' + d + sfx + ' ' + dateObj.getFullYear();
+    }
+
+    // ── MANIFEST ─────────────────────────────────────────────────────────────
+    function buildStopsManifestSection() {
+        var total = parseInt(document.getElementById('stops_count').value) || 0;
+        if (total === 0) return 'None';
+        var lines = [];
+        for (var i = 0; i < total; i++) {
+            var sd = stopData[i];
+            if (sd) {
+                lines.push('Stop ' + (i+1) + ': ' + sd.address +
+                    '\n  📍 Waze: https://waze.com/ul?ll=' + sd.lat + ',' + sd.lng + '&navigate=yes');
+            } else {
+                var raw = (document.getElementById('stop_input_' + i) || {}).value || '(unknown)';
+                lines.push('Stop ' + (i+1) + ': ' + raw);
+            }
+        }
+        return lines.join('\n');
+    }
+
+    function generateManifestText() {
+        var dtObj    = getBookingDateTime();
+        var cat      = document.getElementById('category').value;
+        var isRental = cat.includes('Rental');
+        var vehText  = getSelectedVehicle().label;
+        var total    = parseInt(document.getElementById('stops_count').value) || 0;
+        var finalFare = getFinalFare();
+
+        var pricingLines = '';
+        // Charged items are listed plainly for the customer — no calculation shown.
+        if (!isRental && nightFee > 0) {
+            pricingLines += '*Night Fee:* $' + Math.round(nightFee).toFixed(2) + ' TTD\n';
+        }
+        if (discountApplied && discountAmt > 0) {
+            pricingLines += '*Discount Applied:* -$' + Math.round(discountAmt).toFixed(2) + ' TTD (' + discountLabel + ', ' + discountEmailUsed + ')\n';
+        }
+        pricingLines +=
+            '*GRAND TOTAL TTD:* $' + Math.round(finalFare).toFixed(2) + '\n' +
+            '*GRAND TOTAL USD:* $' + Math.round((finalFare/6.8)).toFixed(2);
+
+        var manifest =
+            '💎 *BLACK CARPET MANIFEST* 💎\n\n' +
+            '*Client:* '   + document.getElementById('name').value + '\n' +
+            '*Phone:* '    + document.getElementById('phone').value + '\n' +
+            '*Email:* '    + (document.getElementById('email').value || 'Not Provided') + '\n' +
+            '*Trip Type:* '+ cat + '\n' +
+            '*Vehicle:* '  + vehText + '\n' +
+            '*Date:* '     + getFullWordDate(dtObj) + '\n' +
+            '*Time:* '     + formatAMPM(dtObj) + '\n\n' +
+            '📍 *LOCATIONS*\n' +
+            '*From:* ' + document.getElementById('p_addr').value + '\n' +
+            '*To:* '   + (document.getElementById('d_addr').value || 'Not Applicable') + '\n\n';
+
+        if (!isRental) {
+            var onCount  = 0, offCount = 0;
+            for (var si = 0; si < total; si++) {
+                if (stopData[si]) {
+                    if (stopData[si].tier === 'near') onCount++;
+                    else offCount++;
+                }
+            }
+            manifest +=
+                '🛑 *DRIVER DIRECTIONS/STOPS:*\n' + buildStopsManifestSection() + '\n\n' +
+                '🛠 *EXTRA SERVICES:*\n' +
+                '*On-Route Stops:* ' + onCount + '\n' +
+                '*Off-Route Stops:* ' + offCount + '\n\n';
+        }
+
+        manifest +=
+            '📝 *EXTRA NOTES:*\n' + (document.getElementById('notes').value || 'None') + '\n\n' +
+            '👥 *MANIFEST*\n' +
+            '*Males:* '   + document.getElementById('m').value + '\n' +
+            '*Females:* ' + document.getElementById('f').value + '\n' +
+            '*Kids:* '    + document.getElementById('k').value + '\n' +
+            '*Luggage:* ' + document.getElementById('b').value + ' Bags\n\n' +
+            '💰 *PRICING & PAYMENT*\n' +
+            '*Payment Method:* ' + document.getElementById('payment_method').value + '\n' +
+            pricingLines;
+
+        if (pMarker) {
+            manifest += '\n\n🚗 *WAZE NAVIGATION*\n' +
+                '*Pickup:* https://waze.com/ul?ll=' + pMarker.getLatLng().lat + ',' + pMarker.getLatLng().lng + '&navigate=yes\n';
+            if (dMarker)
+                manifest += '*Dropoff:* https://waze.com/ul?ll=' + dMarker.getLatLng().lat + ',' + dMarker.getLatLng().lng + '&navigate=yes';
+        }
+        return manifest;
+    }
+
+    // ── PROFILE SAVE / LOAD / CLEAR ──────────────────────────────────────────
+    var PROFILE_KEY = 'bc_client_profile';
+
+    function saveProfile() {
+        var profile = {
+            name:           document.getElementById('name').value.trim(),
+            phone:          document.getElementById('phone').value.trim(),
+            email:          document.getElementById('email').value.trim(),
+            payment_method: document.getElementById('payment_method').value
+        };
+        if (!profile.name && !profile.phone && !profile.email) {
+            alert('Please fill in at least your name, phone, or email before saving.');
+            return;
+        }
+        try {
+            localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+            var btn = document.getElementById('save-profile-btn');
+            var confirm = document.getElementById('save-confirm');
+            btn.textContent = '✓ Saved!';
+            confirm.style.display = 'block';
+            setTimeout(function () {
+                btn.textContent = '💾 Save My Details for Next Time';
+                confirm.style.display = 'none';
+            }, 2500);
+            showProfileBanner(profile);
+            refreshDiscountSectionVisibility();
+        } catch(e) {
+            alert('Could not save profile — storage may be disabled on this browser.');
+        }
+    }
+
+    function loadProfile() {
+        try {
+            var raw = localStorage.getItem(PROFILE_KEY);
+            if (!raw) return;
+            var profile = JSON.parse(raw);
+            if (profile.name)  document.getElementById('name').value  = profile.name;
+            if (profile.phone) document.getElementById('phone').value = profile.phone;
+            if (profile.email) document.getElementById('email').value = profile.email;
+            if (profile.payment_method) {
+                var sel = document.getElementById('payment_method');
+                for (var i = 0; i < sel.options.length; i++) {
+                    if (sel.options[i].value === profile.payment_method) { sel.selectedIndex = i; break; }
+                }
+            }
+            showProfileBanner(profile);
+        } catch(e) { /* storage unavailable, silently skip */ }
+        refreshDiscountSectionVisibility();
+    }
+
+    function clearSavedProfile() {
+        try { localStorage.removeItem(PROFILE_KEY); } catch(e) {}
+        document.getElementById('name').value  = '';
+        document.getElementById('phone').value = '';
+        document.getElementById('email').value = '';
+        document.getElementById('email_step1').value = '';
+        document.getElementById('profile-banner').classList.add('hidden');
+        resetDiscount();
+        refreshDiscountSectionVisibility();
+    }
+
+    function showProfileBanner(profile) {
+        var banner = document.getElementById('profile-banner');
+        var sub    = document.getElementById('profile-banner-sub');
+        banner.classList.remove('hidden');
+        sub.textContent = (profile.name || '') + (profile.phone ? '  |  ' + profile.phone : '');
+    }
+
+    // Auto-load profile when customer reaches step 2
+    var _origGoToStep = goToStep;
+    goToStep = function(s) {
+        _origGoToStep(s);
+        if (s === 2) loadProfile();
+    };
+
+    // Keep Step 1 / Step 2 email fields synced, and if the customer edits
+    // their email after a discount was applied, clear it so they can't keep
+    // the old discount while typing in a different address.
+    document.addEventListener('DOMContentLoaded', function () {
+        var emailField1 = document.getElementById('email_step1');
+        var emailField2 = document.getElementById('email');
+        if (emailField1) {
+            emailField1.addEventListener('input', function () {
+                syncEmailFields('email_step1');
+                if (discountApplied) resetDiscount();
+            });
+        }
+        if (emailField2) {
+            emailField2.addEventListener('input', function () {
+                syncEmailFields('email');
+                if (discountApplied) resetDiscount();
+            });
+        }
+        refreshDiscountSectionVisibility();
+    });
+
+    function validateAndReview() {
+        var hasError = false;
+        var name = document.getElementById('name').value.trim();
+        if (!name) { showError('name', true); hasError = true; } else { showError('name', false); }
+        var phone = document.getElementById('phone').value.trim();
+        if (!phone) { showError('phone', true); hasError = true; } else { showError('phone', false); }
+        var email = document.getElementById('email').value.trim();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError('email', true); hasError = true; } else { showError('email', false); }
+        var m = parseInt(document.getElementById('m').value)||0, f = parseInt(document.getElementById('f').value)||0, k = parseInt(document.getElementById('k').value)||0;
+        if (m+f+k < 1) { showError('passengers', true); hasError = true; } else { showError('passengers', false); }
+        if (hasError) { var fe = document.querySelector('.field-error.visible'); if (fe) fe.scrollIntoView({behavior:'smooth',block:'center'}); return; }
+        document.getElementById('reviewContent').innerText = generateManifestText();
+        goToStep(3);
+    }
+
+    function bookNow() {
+        window.open('https://wa.me/18683568145?text=' + encodeURIComponent(generateManifestText()), '_blank');
+    }
+</script>
+</body>
+  </html>
